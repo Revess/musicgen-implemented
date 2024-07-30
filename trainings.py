@@ -7,8 +7,6 @@ from audiolm_pytorch import SemanticTransformerTrainer, SoundStreamTrainer, Coar
 import torch
 from torch.amp import autocast, GradScaler
 import torchaudio.transforms as T
-import torchaudio
-torchaudio.set_audio_backend("soundfile")
 
 from accelerate import Accelerator
 import wandb
@@ -21,7 +19,6 @@ def load_dataset(subset="dev"):
     return Clotho(root="./datasets/", subset=subset, download=False)
 
 def train_mulan():
-    print(torchaudio.list_audio_backends())  
     dataset = load_dataset()
     val_set = load_dataset(subset="val")
     wandb.init(
@@ -45,7 +42,7 @@ def train_mulan():
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=40000, gamma=0.9)
     scaler = GradScaler()  
 
-    downsample_rate = 22050//2
+    downsample_rate = 22050//4
     resample = T.Resample(orig_freq=44100, new_freq=downsample_rate) 
     accumulation_steps = 64
 
@@ -56,10 +53,9 @@ def train_mulan():
             for i, data in enumerate(dataset):
                 grad_accum = False
                 audio, captions = data["audio"], data["captions"]
-                print(audio)
                 audio = resample(audio)
                 audio = audio.cuda()
-                with autocast():
+                with autocast(device_type='cuda'):
                     loss = mulan(audio, raw_texts=captions)
                     loss = loss / accumulation_steps
                     wandb.log({'losses/train_loss': loss.item()})
