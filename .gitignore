@@ -1,3 +1,5 @@
 datasets
 models
 *__pycache__*
+wandb
+*.out

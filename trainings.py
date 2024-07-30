@@ -5,23 +5,35 @@ from aac_datasets import Clotho
 from audiolm_pytorch import SemanticTransformerTrainer, SoundStreamTrainer, CoarseTransformerTrainer, FineTransformerTrainer
 
 import torch
-from torch.cuda.amp import autocast, GradScaler
+from torch.amp import autocast, GradScaler
 import torchaudio.transforms as T
+import torchaudio
+torchaudio.set_audio_backend("soundfile")
 
 from accelerate import Accelerator
 import wandb
 
 #TODO: Load Wandb in the trainers.
-
-def load_dataset():
-    if len(glob.glob("./datasets/CLOTHO*")) == 0:
-        return Clotho(root="./datasets/", download=True)
-    return Clotho(root=".", download=False)
+def load_dataset(subset="dev"):
+    if len(glob.glob(f"./datasets/CLOTHO_v2.1/clotho_audio_files/{subset}*")) == 0:
+        print(f"Downloading subset: {subset} of Clotho")
+        return Clotho(root="./datasets/", subset=subset, download=True)
+    return Clotho(root="./datasets/", subset=subset, download=False)
 
 def train_mulan():
+    print(torchaudio.list_audio_backends())  
     dataset = load_dataset()
+    val_set = load_dataset(subset="val")
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="musiclm",
+        entity="bjmaat", 
+        name="mulan", 
+    )
 
     mulan, audio_transformer, text_transformer = build_mulan()
+    mulan = mulan.cuda()
+    wandb.watch(mulan)
 
     # Setting up the learning
     audio_lr = 4e-5 
@@ -33,21 +45,24 @@ def train_mulan():
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=40000, gamma=0.9)
     scaler = GradScaler()  
 
-    downsample_rate = 22050//4 
+    downsample_rate = 22050//2
     resample = T.Resample(orig_freq=44100, new_freq=downsample_rate) 
-    accumulation_steps = 1
+    accumulation_steps = 64
 
-    for epoch in range(100):
+    for epoch in range(25):
+        mulan.train()
         with tqdm.tqdm(total=len(dataset)//64, desc=f"Epoch {epoch}") as pbar:
             optimizer.zero_grad()
             for i, data in enumerate(dataset):
                 grad_accum = False
                 audio, captions = data["audio"], data["captions"]
+                print(audio)
                 audio = resample(audio)
-                # audio = audio.cuda()
+                audio = audio.cuda()
                 with autocast():
                     loss = mulan(audio, raw_texts=captions)
                     loss = loss / accumulation_steps
+                    wandb.log({'losses/train_loss': loss.item()})
                 scaler.scale(loss).backward()
 
                 if i % accumulation_steps == 0 and i != 0:    
@@ -66,6 +81,20 @@ def train_mulan():
                 pbar.set_postfix({'loss': loss.item()})
                 pbar.update(1)
                 grad_accum = True
+
+        mulan.eval()
+        with tqdm.tqdm(total=len(val_set), desc=f"Epoch {epoch}") as pbar:
+            with torch.no_grad():
+                tot_loss = 0
+                for i, data in enumerate(dataset):
+                    grad_accum = False
+                    audio, captions = data["audio"], data["captions"]
+                    audio = resample(audio)
+                    audio = audio.cuda()
+                    loss = mulan(audio, raw_texts=captions)
+                    tot_loss += loss.item()
+                    pbar.update(1)
+                wandb.log({'losses/val_loss': tot_loss / len(val_set)})
 
     torch.save(mulan.state_dict(), './models/mulan/ckpt.pt')
     print("done training saved file in: ./models/mulan/ckpt.pt")

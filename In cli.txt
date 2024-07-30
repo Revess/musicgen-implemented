@@ -1,0 +1,3 @@
+pip install torch torchvision torchaudio
+pip install aac-datasets musiclm-pytorch audiolm-pytorch
+pip install tqdm fire wandb ipykernel PySoundFile sox soundfile

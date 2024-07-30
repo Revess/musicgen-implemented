@@ -1,5 +1,13 @@
+torch 
+torchvision 
+torchaudio
 aac-datasets
 musiclm-pytorch
+audiolm-pytorch
 tqdm
 fire
 wandb
+ipykernel
+PySoundFile
+sox
+soundfile
