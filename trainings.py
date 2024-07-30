@@ -1,5 +1,6 @@
 import glob, tqdm, fire
 from models import *
+from collections import defaultdict
 
 from aac_datasets import Clotho
 from audiolm_pytorch import SemanticTransformerTrainer, SoundStreamTrainer, CoarseTransformerTrainer, FineTransformerTrainer
@@ -18,7 +19,7 @@ def load_dataset(subset="dev"):
         return Clotho(root="./datasets/", subset=subset, download=True)
     return Clotho(root="./datasets/", subset=subset, download=False)
 
-def train_mulan():
+def train_mulan(device='cuda'):
     dataset = load_dataset()
     val_set = load_dataset(subset="val")
     wandb.init(
@@ -29,15 +30,19 @@ def train_mulan():
     )
 
     mulan, audio_transformer, text_transformer = build_mulan()
-    mulan = mulan.cuda()
+    if device == 'cuda':
+        mulan = mulan.cuda()
     wandb.watch(mulan)
 
     # Setting up the learning
     audio_lr = 4e-5 
     text_lr = 5e-5
     optimizer = torch.optim.Adam([
-        {'params': audio_transformer.parameters(), 'lr': audio_lr},
-        {'params': text_transformer.parameters(), 'lr': text_lr}
+        {'params': mulan.audio.parameters(), 'lr': audio_lr},
+        {'params': mulan.text.parameters(), 'lr': text_lr},
+        {'params': mulan.contrast.parameters(), 'lr': text_lr},
+        {'params': mulan.text_to_latents.parameters(), 'lr': text_lr},
+        {'params': mulan.audio_to_latents.parameters(), 'lr': audio_lr},
     ])
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=40000, gamma=0.9)
     scaler = GradScaler()  
@@ -54,11 +59,22 @@ def train_mulan():
                 grad_accum = False
                 audio, captions = data["audio"], data["captions"]
                 audio = resample(audio)
-                audio = audio.cuda()
-                with autocast(device_type='cuda'):
+                if device == 'cuda':
+                    audio = audio.cuda()
+                with autocast(device_type=device):
                     loss = mulan(audio, raw_texts=captions)
                     loss = loss / accumulation_steps
-                    wandb.log({'losses/train_loss': loss.item()})
+                    wandb.log({
+                        'losses/train_loss': loss.item(), 
+                        'loss_parts/denom_i': mulan.contrast.denominator_i.mean().item(), 
+                        'loss_parts/denom_j': mulan.contrast.denominator_j.mean().item(), 
+                        'loss_parts/numer': mulan.contrast.numerator.mean().item(), 
+                        'loss_parts/sims': mulan.contrast.sims.mean().item(), 
+                        'loss_parts/temperatures': mulan.contrast.temperatures.mean().item(),
+                        'loss_logged/denom_i': torch.log(mulan.contrast.denominator_i.mean().clamp(min = 1e-20)).item(),
+                        'loss_logged/denom_j': torch.log(mulan.contrast.denominator_j.mean().clamp(min = 1e-20)).item(),
+                        'loss_logged/numer': -torch.log(mulan.contrast.numerator.mean().clamp(min = 1e-20)).item()
+                    })
                 scaler.scale(loss).backward()
 
                 if i % accumulation_steps == 0 and i != 0:    
@@ -81,16 +97,32 @@ def train_mulan():
         mulan.eval()
         with tqdm.tqdm(total=len(val_set), desc=f"Epoch {epoch}") as pbar:
             with torch.no_grad():
-                tot_loss = 0
+                tot_losses = defaultdict(float)
                 for i, data in enumerate(dataset):
                     grad_accum = False
                     audio, captions = data["audio"], data["captions"]
                     audio = resample(audio)
-                    audio = audio.cuda()
+                    if device == 'cuda':
+                        audio = audio.cuda()
                     loss = mulan(audio, raw_texts=captions)
-                    tot_loss += loss.item()
+                    tot_losses['losses/val_loss'] += loss.item()
+                    tot_losses['val_loss_parts/denom_i'] += mulan.contrast.denominator_i.mean().item()
+                    tot_losses['val_loss_parts/denom_j'] += mulan.contrast.denominator_j.mean().item()
+                    tot_losses['val_loss_parts/numer'] += mulan.contrast.numerator.mean().item()
+                    tot_losses['val_loss_logged/denom_i'] += torch.log(mulan.contrast.denominator_i.mean().clamp(min = 1e-20)).item()
+                    tot_losses['val_loss_logged/denom_j'] += torch.log(mulan.contrast.denominator_j.mean().clamp(min = 1e-20)).item()
+                    tot_losses['val_loss_logged/numer'] += -torch.log(mulan.contrast.numerator.mean().clamp(min = 1e-20)).item()
                     pbar.update(1)
-                wandb.log({'losses/val_loss': tot_loss / len(val_set)})
+
+                tot_losses['losses/val_loss'] /= len(val_set)
+                tot_losses['val_loss_parts/denom_i'] /= len(val_set)
+                tot_losses['val_loss_parts/denom_j'] /= len(val_set)
+                tot_losses['val_loss_parts/numer'] /= len(val_set)
+                tot_losses['val_loss_logged/denom_i'] /= len(val_set)
+                tot_losses['val_loss_logged/denom_j'] /= len(val_set)
+                tot_losses['val_loss_logged/numer'] /= len(val_set)
+
+                wandb.log(tot_losses)
 
     torch.save(mulan.state_dict(), './models/mulan/ckpt.pt')
     print("done training saved file in: ./models/mulan/ckpt.pt")
