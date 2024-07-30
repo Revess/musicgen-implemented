@@ -1,4 +1,4 @@
-import glob, tqdm, fire
+import glob, tqdm, fire, wandb
 from models import *
 from collections import defaultdict
 
@@ -10,7 +10,6 @@ from torch.amp import autocast, GradScaler
 import torchaudio.transforms as T
 
 from accelerate import Accelerator
-import wandb
 
 #TODO: Load Wandb in the trainers.
 def load_dataset(subset="dev"):
@@ -26,7 +25,7 @@ def train_mulan(device='cuda'):
         # set the wandb project where this run will be logged
         project="musiclm",
         entity="bjmaat", 
-        name="mulan", 
+        name="mulan"
     )
 
     mulan, audio_transformer, text_transformer = build_mulan()
@@ -47,19 +46,20 @@ def train_mulan(device='cuda'):
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=40000, gamma=0.9)
     scaler = GradScaler()  
 
-    downsample_rate = 22050//4
-    resample = T.Resample(orig_freq=44100, new_freq=downsample_rate) 
+    if device=='cuda':
+        downsample_rate = 22050//4
+        resample = T.Resample(orig_freq=44100, new_freq=downsample_rate) 
     accumulation_steps = 64
 
     for epoch in range(25):
         mulan.train()
-        with tqdm.tqdm(total=len(dataset)//64, desc=f"Epoch {epoch}") as pbar:
+        with tqdm.tqdm(total=len(dataset)//accumulation_steps, desc=f"Epoch {epoch}") as pbar:
             optimizer.zero_grad()
             for i, data in enumerate(dataset):
                 grad_accum = False
                 audio, captions = data["audio"], data["captions"]
-                audio = resample(audio)
                 if device == 'cuda':
+                    audio = resample(audio)
                     audio = audio.cuda()
                 with autocast(device_type=device):
                     loss = mulan(audio, raw_texts=captions)
@@ -101,8 +101,8 @@ def train_mulan(device='cuda'):
                 for i, data in enumerate(dataset):
                     grad_accum = False
                     audio, captions = data["audio"], data["captions"]
-                    audio = resample(audio)
                     if device == 'cuda':
+                        audio = resample(audio)
                         audio = audio.cuda()
                     loss = mulan(audio, raw_texts=captions)
                     tot_losses['losses/val_loss'] += loss.item()

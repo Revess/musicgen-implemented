@@ -11,3 +11,5 @@ ipykernel
 PySoundFile
 sox
 soundfile
+lightning
+natsort

@@ -11,4 +11,4 @@ conda activate musiclm
 
 echo $$
 
-python ./mulan_pl.py --strategy='cpu'
+python ./trainings.py train_mulan --device='cpu'
