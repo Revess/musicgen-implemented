@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=musiclm
-#SBATCH --time=24:00:00
+#SBATCH --time=12:00:00
 #SBATCH -N 1
-#SBATCH -p gpu
+#SBATCH -p gpu_h100
 #SBATCH --gpus 1
 #SBATCH --output=./jobs/%x_%A_%a.out    # Standard output and error log
 

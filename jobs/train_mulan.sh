@@ -1,14 +1,18 @@
 #!/bin/bash
 #SBATCH --job-name=musiclm
-#SBATCH --time=24:00:00
-#SBATCH -C cpunode
+#SBATCH --time=8:00:00
+#SBATCH -N 1
+#SBATCH -p gpu_h100
+#SBATCH --gpus 1
 #SBATCH --output=./jobs/%x_%A_%a.out    # Standard output and error log
 
 . /etc/bashrc
 . ~/.bashrc
-module load cuda12.1/toolkit
+module load 2023
+module load CUDA/12.1.1
 conda activate musiclm
+
 
 echo $$
 
-python ./mulan_pl.py --strategy='cpu'
+python ./mulan_pl.py --strategy='auto'

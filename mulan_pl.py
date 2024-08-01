@@ -11,7 +11,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint, GradientAccumulationSch
 from lightning.pytorch.strategies import FSDPStrategy
 from lightning.pytorch.utilities import rank_zero_only
 
-import fire, random, wandb, random, numpy, os, natsort, glob, math
+import fire, random, wandb, random, numpy, os, natsort, glob, math, random
 from tqdm import tqdm
 from collections import defaultdict
 
@@ -35,8 +35,8 @@ class LitMuLaN(L.LightningModule):
         return self.model(inputs)
 
     def training_step(self, batch, batch_idx):
-        inputs, target = batch['audio'], batch['captions']
-        loss = self.model(inputs)
+        audio, captions = batch['audio'][0][0][None, :441000], [random.choice(batch['captions'][0])] #Assert mono for now by taking the 0 channel and expanding it as a fake batch
+        loss = self.model(audio, raw_texts=captions)
         log_dict = {
             'losses/train_loss': loss.item(), 
             'loss_parts/denom_i': self.model.contrast.denominator_i.mean().item(), 
@@ -52,8 +52,9 @@ class LitMuLaN(L.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        inputs, target = batch['audio'], batch['captions']
-        loss = self.model(inputs)
+        audio, captions = batch['audio'][0][0][None, :441000], [random.choice(batch['captions'][0])]
+        print(audio.device)
+        loss = self.model(audio, raw_texts=captions)
 
         self.val_log_dict['losses/val_loss'] += loss.item()
         self.val_log_dict['val_loss_parts/denom_i'] += self.model.contrast.denominator_i.mean().item()
@@ -81,8 +82,8 @@ class LitMuLaN(L.LightningModule):
         audio_lr = 4e-5 
         text_lr = 5e-5
         optimizer = torch.optim.Adam([
-            {'params': self.model.audio.parameters(), 'lr': audio_lr, 'foreach': False if self.strategy in ['fsdp', 'FSDP'] else None},
-            {'params': self.model.text.parameters(), 'lr': text_lr, 'foreach': False if self.strategy in ['fsdp', 'FSDP'] else None},
+            {'params': self.audio_transformer.parameters(), 'lr': audio_lr, 'foreach': False if self.strategy in ['fsdp', 'FSDP'] else None},
+            {'params': self.text_transformer.parameters(), 'lr': text_lr, 'foreach': False if self.strategy in ['fsdp', 'FSDP'] else None},
             {'params': self.model.contrast.parameters(), 'lr': text_lr, 'foreach': False if self.strategy in ['fsdp', 'FSDP'] else None},
             {'params': self.model.text_to_latents.parameters(), 'lr': text_lr, 'foreach': False if self.strategy in ['fsdp', 'FSDP'] else None},
             {'params': self.model.audio_to_latents.parameters(), 'lr': audio_lr, 'foreach': False if self.strategy in ['fsdp', 'FSDP'] else None},
@@ -117,12 +118,12 @@ class FSDPWeightsLogger(Callback):
 
 def train_mulan(
         seed=42, 
-        batch_size = 64,
+        batch_size = 1,
         devel=False,
         resume = None,
-        strategy= 'FSDP', #'deepspeed',
+        strategy= 'auto', #'deepspeed',
         nodes=1,
-        grad_accum=1,
+        grad_accum=64,
         max_epochs=1_000_000,
         cp=False,
         run_name = "mulan"
@@ -160,7 +161,7 @@ def train_mulan(
         strategy=strategy, 
         val_samples=len(val_loader.dataset),
         batch_size = batch_size
-    )
+    ).cuda()
     model.configure_optimizers()
 
     print('Number of parameters:', sum(p.numel() for p in model.parameters()))
@@ -179,7 +180,7 @@ def train_mulan(
         )
 
     callbacks = [
-        LearningRateMonitor(logging_interval='step'),
+        # LearningRateMonitor(logging_interval='step'),
         # GradientAccumulationScheduler(scheduling={0: 4, 1: 8, 2: 12, 5: 16, 8: 32, 12: 64})
     ]
     if not devel:
