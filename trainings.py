@@ -1,6 +1,8 @@
 import glob, tqdm, fire, wandb, random
 from models import *
 from collections import defaultdict
+from torch.utils.data import Dataset
+from aac_datasets.utils.collate import BasicCollate
 
 from aac_datasets import Clotho
 from audiolm_pytorch import SemanticTransformerTrainer, SoundStreamTrainer, CoarseTransformerTrainer, FineTransformerTrainer
@@ -10,6 +12,18 @@ from torch.amp import autocast, GradScaler
 import torchaudio.transforms as T
 
 from accelerate import Accelerator
+
+class DS(Dataset):
+    '''wrapper for the dataset fn'''
+    def __init__(self, subset='dev'):
+        self.data = load_dataset(subset=subset)
+
+    def __getitem__(self, index):
+        x, y = self.data[index]['audio'][0, :441000], self.data[index]['captions']
+        return x
+    
+    def __len__(self):
+        return len(self.data)
 
 #TODO: Load Wandb in the trainers.
 def load_dataset(subset="dev"):
@@ -124,8 +138,12 @@ def train_mulan(device='cuda'):
     print("done training saved file in: ./models/mulan/ckpt.pt")
 
 def train_semantic_transformer():
+    dataset = DS()
+    val_set = DS(subset="val")
+
     mulan, _, _ = build_mulan()
     mulan.load_state_dict(torch.load('./models/mulan/ckpt.pt'))
+    print('done loading mulan')
     wav2vec = build_wav2vec()
     quantizer = build_quantizer(mulan)
     semantic_transformer = build_semantic_transformer(quantizer, wav2vec)
@@ -133,15 +151,19 @@ def train_semantic_transformer():
     trainer = SemanticTransformerTrainer(
         transformer = semantic_transformer,
         wav2vec = wav2vec,
+        dataset=dataset,
+        valid_dataset=val_set,
         audio_conditioner = quantizer,
-        folder ='./datasets/CLOTHO_v2.1/clotho_audio_files',
         results_folder='./models/SemanticTransformer',
         batch_size = 1,
         data_max_length = 320 * 32,
         num_train_steps = 1_000_000,
-        accelerate_kwargs={'cpu': True},
-        force_clear_prev_results = True
+        force_clear_prev_results = True,
+        use_wandb_tracking=True,
+        grad_accum_every=64
     )
+
+    trainer.wandb_tracker(project='musiclm', run='semantic_transformer')
 
     trainer.train()
     torch.save(mulan.state_dict(), './mulan/SemanticTransformer')
