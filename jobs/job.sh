@@ -1,8 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=musiclm
 #SBATCH --time=24:00:00
-#SBATCH -C A100
-#SBATCH --gres=gpu:1
+#SBATCH -C cpunode
 #SBATCH --output=./jobs/%x_%A_%a.out    # Standard output and error log
 
 . /etc/bashrc
@@ -12,4 +11,4 @@ conda activate musiclm
 
 echo $$
 
-python ./trainings.py train_mulan
+python ./trainings.py train_semantic_transformer

@@ -142,7 +142,7 @@ def train_semantic_transformer():
     val_set = DS(subset="val")
 
     mulan, _, _ = build_mulan()
-    mulan.load_state_dict(torch.load('./models/mulan/ckpt.pt'))
+    mulan.load_state_dict(torch.load('./models/mulan/ckpt.pt', map_location='cpu'))
     print('done loading mulan')
     wav2vec = build_wav2vec()
     quantizer = build_quantizer(mulan)
@@ -158,6 +158,7 @@ def train_semantic_transformer():
         batch_size = 1,
         data_max_length = 320 * 32,
         num_train_steps = 1_000_000,
+        accelerate_kwargs={'cpu': True},
         force_clear_prev_results = True,
         use_wandb_tracking=True,
         grad_accum_every=64
