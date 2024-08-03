@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Generator</title>
+    <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const form = document.querySelector("form");
+            const audioWave = document.querySelector(".audio-wave");
+            const audioWaveWrappper = document.querySelector(".audio-anim-wrapper");
+            const downloadLinkContainer = document.querySelector(".download-link");
+            const downloadLink = document.querySelector(".download-link a");
+
+            form.addEventListener("submit", function (event) {
+                event.preventDefault(); // Prevent the default form submission
+
+                // Show loading animation
+                audioWave.style.opacity = '1';
+                audioWave.style.display = 'flex';
+                audioWaveWrappper.style.display = 'grid';
+                downloadLinkContainer.style.display = 'none'; // Hide the download link
+
+                const formData = new FormData(form);
+
+                fetch("/", {
+                    method: "POST",
+                    body: formData,
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        // Hide loading animation
+                        audioWave.style.opacity = '0';
+                        audioWave.style.display = 'none';
+                        audioWaveWrappper.style.display = 'none';
+
+                        if (data.success) {
+                            // Update the download link
+                            downloadLink.href = data.download_link;
+                            downloadLinkContainer.style.display = 'block';
+                        } else {
+                            // Handle error
+                            alert("Error generating audio. Please try again.");
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Error:", error);
+                        alert("An error occurred. Please try again.");
+                        // Hide loading animation in case of error
+                        audioWave.style.opacity = '0';
+                        audioWave.style.display = 'none';
+                    });
+            });
+        });
+    </script>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Generate Audio from Prompt</h1>
+        <form method="POST">
+            <input type="text" name="prompt" placeholder="Enter your prompt" required>
+            <input type="submit" value="Generate Audio">
+        </form>
+        <div class="audio-anim-wrapper">
+            <div class="audio-wave">
+                <div></div>
+                <div></div>
+                <div></div>
+                <div></div>
+                <div></div>
+            </div>
+        </div>
+        <div class="download-link" style="display: none;">
+            <a href="#" download>Download Your Audio</a>
+        </div>
+    </div>
+</body>
+
+</html>

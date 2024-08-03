@@ -1,8 +1,7 @@
 from transformers import pipeline
 import scipy
 
-synthesiser = pipeline("text-to-audio", "facebook/musicgen-medium")
-
+synthesiser = pipeline("text-to-audio", "facebook/musicgen-small", device='cpu')
+print("generating")
 music = synthesiser("lo-fi music with a soothing melody", forward_params={"do_sample": True})
-
 scipy.io.wavfile.write("musicgen_out.wav", rate=music["sampling_rate"], data=music["audio"])
