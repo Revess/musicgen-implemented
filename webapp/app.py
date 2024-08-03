@@ -7,7 +7,7 @@ import uuid
 synthesiser = pipeline("text-to-audio", "facebook/musicgen-small", device="cpu")
 
 # Initialize the Flask application
-app = Flask(__name__)
+app = Flask(__name__, static_url_path='/static')
 
 # Path to store the generated audio files
 AUDIO_FOLDER = os.path.join(os.getcwd(), 'static', 'audio')
@@ -38,7 +38,11 @@ def index():
 
 @app.route('/download/<filename>')
 def download(filename):
-    return send_from_directory(AUDIO_FOLDER, filename, as_attachment=True)
+    return send_from_directory(AUDIO_FOLDER, filename, as_attachment=True)\
+    
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    return send_from_directory(os.path.join(app.root_path, 'static'), filename)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5500)
