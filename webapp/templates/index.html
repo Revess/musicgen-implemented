@@ -9,22 +9,101 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <script>
         document.addEventListener("DOMContentLoaded", function () {
+            // Function to get a cookie by name
+            function getCookie(name) {
+                let value = "; " + document.cookie;
+                let parts = value.split("; " + name + "=");
+                if (parts.length === 2) return parts.pop().split(";").shift();
+            }
+
+            // Function to set a cookie
+            function setCookie(name, value, days) {
+                const d = new Date();
+                d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
+                const expires = "expires=" + d.toUTCString();
+                document.cookie = name + "=" + value + ";" + expires + ";path=/";
+            }
+
+            // Show cookie consent banner if the user hasn't accepted cookies
+            if (!getCookie("cookiesAccepted")) {
+                document.getElementById("cookieConsent").style.display = "block";
+            } else {
+                document.querySelector(".container").style.display = "block";
+            }
+            
+            // Event listener for the Accept button
+            document.getElementById("acceptCookies").onclick = function () {
+                setCookie("cookiesAccepted", "true", 365); // Set a cookie for 1 year
+                document.getElementById("cookieConsent").style.display = "none"; // Hide the banner
+                document.querySelector(".container").style.display = "block"; // Show the main content
+            };
+
             const form = document.querySelector("form");
             const audioWave = document.querySelector(".audio-wave");
             const audioWaveWrappper = document.querySelector(".audio-anim-wrapper");
             const downloadLinkContainer = document.querySelector(".download-link");
-            const downloadLink = document.querySelector(".download-link a");
+            const audioPlayerContainer = document.querySelector(".audio-players");
+            const slider = document.getElementById("Duration");
+            const sliderValue = document.getElementById("slider-value");
+            const dropZone = document.getElementById("dropZone");
+            const audioInput = document.getElementById("audioInput");
+
+            dropZone.addEventListener("click", () => {
+                audioInput.click(); // Trigger the file input when the drop zone is clicked
+            });
+
+            dropZone.addEventListener("dragover", (event) => {
+                event.preventDefault(); // Prevent default behavior to allow drop
+                dropZone.classList.add("dragover"); // Add a visual indication
+            });
+
+            dropZone.addEventListener("dragleave", () => {
+                dropZone.classList.remove("dragover"); // Remove visual indication when dragging leaves
+            });
+
+            dropZone.addEventListener("drop", (event) => {
+                event.preventDefault();
+                dropZone.classList.remove("dragover");
+
+                const files = event.dataTransfer.files;
+                if (files.length > 0 && files[0].type.startsWith("audio/")) {
+                    audioInput.files = files; // Assign the dropped files to the file input
+                    dropZone.textContent = files[0].name; // Update the drop zone text to show the file name
+                } else {
+                    alert("Please drop a valid audio file.");
+                }
+            });
+
+            audioInput.addEventListener("change", () => {
+                if (audioInput.files.length > 0) {
+                    dropZone.textContent = audioInput.files[0].name; // Update the drop zone text to show the file name
+                }
+            });
+
+            // Update slider value display
+            slider.addEventListener("input", function () {
+                sliderValue.textContent = this.value;
+            });
 
             form.addEventListener("submit", function (event) {
                 event.preventDefault(); // Prevent the default form submission
+                document.getElementById('userid').value = getCookie('userid');
 
                 // Show loading animation
                 audioWave.style.opacity = '1';
                 audioWave.style.display = 'flex';
                 audioWaveWrappper.style.display = 'grid';
+                document.querySelectorAll(".audio-players audio").forEach((player, index) => {
+                    player.style.display = 'none';
+                });
                 downloadLinkContainer.style.display = 'none'; // Hide the download link
+                audioPlayerContainer.style.display = 'none'; // Hide the audio player
 
                 const formData = new FormData(form);
+
+                // for (var pair of formData.entries()) {
+                //     console.log(pair[0]+ ': ' + pair[1]); 
+                // }
 
                 fetch("/", {
                     method: "POST",
@@ -38,11 +117,18 @@
                         audioWaveWrappper.style.display = 'none';
 
                         if (data.success) {
-                            // Update the download link
-                            downloadLink.href = data.download_link;
-                            downloadLinkContainer.style.display = 'block';
+                            setCookie('userid', data.userid);
+                            // Show audio players and update sources
+                            const players = document.querySelectorAll(".audio-players audio");
+                            data.download_links.forEach((data, index) => {
+                                players[index].src = data;
+                                players[index].style.display = 'block';
+                            });
+
+                            audioPlayerContainer.style.display = 'block';
                         } else {
                             // Handle error
+                            console.log(data.error)
                             alert("Error generating audio. Please try again.");
                         }
                     })
@@ -59,12 +145,56 @@
 </head>
 
 <body>
+    <div id="cookieConsent">
+        This website uses cookies to ensure you get the best experience on our website. <br>
+        We only use it so we can clean up the uploaded and generated audio data neatly. <br>
+        <button id="acceptCookies">Accept</button>
+    </div>
+
     <div class="container">
         <h1>Generate Audio from Prompt</h1>
-        <form method="POST">
-            <input type="text" name="prompt" placeholder="Enter your prompt" required>
+        <form method="POST"  enctype="multipart/form-data">
+            <!-- The hidden meta data in cookies -->
+            <input id="userid" name="userid" value="0" style="display: none;">
+
+            <label for="prompt">Enter Prompt:</label>
+            <input type="text" id="prompt" name="prompt" placeholder="Enter your prompt" required>
+            <input type="file" id="audioInput" name="audioInput" accept="audio/*" style="display: none;">
+            <div id="dropZone" class="drop-zone">
+                Drop your audio file here or click to upload
+            </div>
+            <!-- Additional inputs -->
+            <div class="input-wrapper">
+                <label for="slider">Select Value: <span id="slider-value">8</span></label>
+                <input type="range" id="Duration" name="Duration" min="1" max="60" value="8">
+                <div class="number-inputs">
+                    <div class="number-input-item">
+                        <label for="Temperature">Temperature</label>
+                        <input type="number" id="Temperature" name="Temperature" value="1.0" min="0.0" oninput="if(this.value !== ''){if(this.value < 0.0){this.value = this.min;}}">
+                    </div>
+                    <div class="number-input-item">
+                        <label for="TopK">Top K</label>
+                        <input type="number" id="TopK" name="Top K" value="500">
+                    </div>
+                    <div class="number-input-item">
+                        <label for="TopP">Top P</label>
+                        <input type="number" id="TopP" name="Top P" value="0.0">
+                    </div>
+                </div>
+                <div class="number-inputs">
+                    <div class="number-input-item">
+                        <label for="Samples">Samples</label>
+                        <input type="number" id="Samples" name="Samples" value="1" min="1" max="4" oninput="if(this.value !== ''){if(this.value < 1){this.value = this.min;}else{if(this.value > 4){this.value = this.max;}}}">
+                    </div>
+                    <div class="number-input-item cfg-item">
+                        <label for="CFG">Classifier Free Guidance</label>
+                        <input type="number" id="CFG" name="Classifier Free Guidance" value="5">
+                    </div>
+                </div>
+            </div>
             <input type="submit" value="Generate Audio">
         </form>
+
         <div class="audio-anim-wrapper">
             <div class="audio-wave">
                 <div></div>
@@ -74,8 +204,17 @@
                 <div></div>
             </div>
         </div>
+
+        <div class="audio-players" style="display: none;">
+            <h2>Your Generated Audio Files</h2>
+            <audio controls style="display:none" src="#"></audio>
+            <audio controls style="display:none" src="#"></audio>
+            <audio controls style="display:none" src="#"></audio>
+            <audio controls style="display:none" src="#"></audio>
+        </div>
+
         <div class="download-link" style="display: none;">
-            <a href="#" download>Download Your Audio</a>
+            <a href="#" download>Download All Audio Files</a>
         </div>
     </div>
 </body>

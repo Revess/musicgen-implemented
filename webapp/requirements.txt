@@ -1,7 +1,4 @@
 Flask
-transformers
-scipy
 soundfile
-torch 
-torchvision 
-torchaudio
+audiocraft
+apscheduler

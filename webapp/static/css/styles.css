@@ -31,6 +31,13 @@ body {
     gap: 15px;
 }
 
+.container label {
+    font-weight: 500;
+    text-align: left;
+    margin-bottom: 5px;
+    display: block;
+}
+
 .container input[type="text"] {
     padding: 10px;
     font-size: 16px;
@@ -42,6 +49,50 @@ body {
 
 .container input[type="text"]:focus {
     border-color: #007BFF;
+}
+
+.input-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.input-wrapper label {
+    font-weight: 500;
+    margin-bottom: 5px;
+}
+
+.number-inputs {
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+}
+
+.number-input-item {
+    width: 30%;
+}
+
+.number-input-item label {
+    display: block;
+    text-align: left;
+    margin-bottom: 5px;
+    font-size: 14px;
+}
+
+.number-input-item input{
+    width: 100%;
+    padding: 10px;
+    font-size: 16px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    box-sizing: border-box;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.cfg-item {
+    width: 66%;
 }
 
 .container input[type="submit"] {
@@ -121,4 +172,86 @@ body {
     50% {
         height: 30px;
     }
+}
+
+.audio-players {
+    margin-top: 20px;
+}
+
+.audio-players h2 {
+    font-size: 20px;
+    margin-bottom: 10px;
+    color: #007BFF;
+}
+
+.audio-players audio {
+    display: block;
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+/* Hide the arrows in Chrome, Safari, Edge, and Opera */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Hide the arrows in Firefox */
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
+.drop-zone {
+    width: 100%;
+    padding: 1 20px;
+    border: 2px dashed #ccc;
+    border-radius: 5px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.3s;
+}
+
+.drop-zone:hover {
+    border-color: #888;
+}
+
+.drop-zone.dragover {
+    border-color: #000;
+}
+
+/* Basic styles for the cookie banner */
+#cookieConsent {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #f4f4f4;
+    color: #333;
+    padding: 20px;
+    width: 300px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    text-align: center;
+    z-index: 1000;
+    display: none; /* Initially hidden */
+}
+
+#cookieConsent button {
+    background-color: #007BFF;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    margin-top: 15px;
+    border-radius: 5px;
+}
+
+#cookieConsent button:hover {
+    background-color: #0056b3;
+}
+
+
+.container {
+    display: none; /* Initially hidden */
 }
