@@ -9,6 +9,53 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <script>
         document.addEventListener("DOMContentLoaded", function () {
+            // Arrays of words to cycle through
+            const prompt1Words = ["Techno beat", "Ambient sound", "Classical melody", "Jazz rhythm", "Hip-hop groove", "Funky bassline", "Orchestral swell", "Acoustic guitar", "Electronic synthwave", "Percussive hits"];
+            const prompt2Words = ["120 BPM", "80 BPM", "100 BPM", "140 BPM", "60 BPM", "90 BPM", "110 BPM", "130 BPM", "150 BPM", "70 BPM"];
+            const prompt3Words = ["Strong bass", "Soft piano", "Electric guitar", "Flute harmony", "Heavy drums", "Smooth saxophone", "Synth pads", "Vocal chops", "String quartet", "Brass section"];
+
+            // Function to type out the words
+            function typeOutWords(inputElement, wordsArray, interval) {
+                let index = 0;
+                function typeWord() {
+                    let word = wordsArray[index];
+                    let charIndex = 0;
+                    inputElement.placeholder = ""; // Clear current placeholder
+                    const typingInterval = setInterval(() => {
+                        if (charIndex < word.length) {
+                            inputElement.placeholder += word[charIndex];
+                            charIndex++;
+                        } else {
+                            clearInterval(typingInterval);
+                            index = (index + 1) % wordsArray.length;
+                            setTimeout(typeWord, interval); // Wait for the interval before typing the next word
+                        }
+                    }, 100); // Adjust typing speed here
+                }
+                typeWord(); // Start typing immediately when the page loads
+            }
+
+            // Function to update the hidden prompt input
+            function updatePromptValue() {
+                document.getElementById('prompt').value = prompt1.value + " " + prompt2.value + " " + prompt3.value + " ";
+            }
+
+            // Initialize typing for each input field
+            const prompt1 = document.getElementById('prompt1');
+            const prompt2 = document.getElementById('prompt2');
+            const prompt3 = document.getElementById('prompt3');
+
+            typeOutWords(prompt1, prompt1Words, 4000); // Change every 4 seconds
+            typeOutWords(prompt2, prompt2Words, 4000); // Change every 5 seconds
+            typeOutWords(prompt3, prompt3Words, 4000); // Change every 6 seconds
+
+            // Event listeners to manually update the hidden prompt input
+            prompt1.addEventListener('input', updatePromptValue);
+            prompt2.addEventListener('input', updatePromptValue);
+            prompt3.addEventListener('input', updatePromptValue);
+
+            // The rest of your existing JavaScript code...
+
             // Function to get a cookie by name
             function getCookie(name) {
                 let value = "; " + document.cookie;
@@ -43,10 +90,38 @@
             const audioWaveWrappper = document.querySelector(".audio-anim-wrapper");
             const downloadLinkContainer = document.querySelector(".download-link");
             const audioPlayerContainer = document.querySelector(".audio-players");
-            const slider = document.getElementById("Duration");
-            const sliderValue = document.getElementById("slider-value");
+            const durationSlider = document.getElementById("Duration");
+            const tempSlider = document.getElementById("Temperature");
+            const samplesSlider = document.getElementById("Samples");
+            const durationSliderliderValue = document.getElementById("duration-slider-value");
+            const tempSliderValue = document.getElementById("temp-slider-value");
+            const samplesSliderValue = document.getElementById("samples-slider-value");
             const dropZone = document.getElementById("dropZone");
             const audioInput = document.getElementById("audioInput");
+            const toggleButton = document.getElementById('toggleAdvancedOptions');
+            const advancedOptions = document.getElementById('advancedOptions');
+
+            prompt1.addEventListener('input', () => {
+                updatePromptValue()
+            });
+
+            prompt2.addEventListener('input', () => {
+                updatePromptValue()
+            });
+
+            prompt3.addEventListener('input', () => {
+                updatePromptValue()
+            });
+
+            toggleButton.addEventListener('click', function() {
+                if (advancedOptions.style.display === 'none' || advancedOptions.style.display === '') {
+                    advancedOptions.style.display = 'block';
+                    toggleButton.textContent = 'Hide Advanced Options';
+                } else {
+                    advancedOptions.style.display = 'none';
+                    toggleButton.textContent = 'Advanced Options';
+                }
+            });
 
             dropZone.addEventListener("click", () => {
                 audioInput.click(); // Trigger the file input when the drop zone is clicked
@@ -81,8 +156,16 @@
             });
 
             // Update slider value display
-            slider.addEventListener("input", function () {
-                sliderValue.textContent = this.value;
+            durationSlider.addEventListener("input", function () {
+                durationSliderliderValue.textContent = this.value + " seconds";
+            });
+
+            tempSlider.addEventListener("input", function () {
+                tempSliderValue.textContent = Math.round((this.value/1.5)*100) + "%";
+            });
+
+            samplesSlider.addEventListener("input", function () {
+                samplesSliderValue.textContent = this.value;
             });
 
             form.addEventListener("submit", function (event) {
@@ -140,6 +223,47 @@
                         audioWave.style.display = 'none';
                     });
             });
+
+            fetch("/api/download_links", {
+                method: "POST",
+                headers: {
+                    'Content-Type': 'application/json', // Specify the content type
+                },
+                body: JSON.stringify({
+                    userid: getCookie('userid'),
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    // Hide loading animation
+                    audioWave.style.opacity = '0';
+                    audioWave.style.display = 'none';
+                    audioWaveWrappper.style.display = 'none';
+                    console.log(data)
+
+                    if (data.success) {
+                        setCookie('userid', data.userid);
+                        // Show audio players and update sources
+                        const players = document.querySelectorAll(".audio-players audio");
+                        data.download_links.forEach((data, index) => {
+                            players[index].src = data;
+                            players[index].style.display = 'block';
+                            audioPlayerContainer.style.display = 'block';
+                        });
+                    } else {
+                        // Handle error
+                        console.log(data.error)
+                        alert("Error generating audio. Please try again.");
+                    }
+                })
+                .catch(error => {
+                    console.error("Error:", error);
+                    alert("An error occurred. Please try again.");
+                    // Hide loading animation in case of error
+                    audioWave.style.opacity = '0';
+                    audioWave.style.display = 'none';
+                });
+
         });
     </script>
 </head>
@@ -156,39 +280,58 @@
         <form method="POST"  enctype="multipart/form-data">
             <!-- The hidden meta data in cookies -->
             <input id="userid" name="userid" value="0" style="display: none;">
+            <input id="prompt" name="prompt" value="0" style="display: none;">
 
-            <label for="prompt">Enter Prompt:</label>
-            <input type="text" id="prompt" name="prompt" placeholder="Enter your prompt" required>
+            <label for="prompt">Prompt:</label>
+            <input type="text" id="prompt1" name="prompt1" placeholder="Techno beat" required>
+
+            <div class="number-inputs">
+                <!-- <div class="number-input-item">
+                    
+                </div> -->
+
+                <div class="number-input-item">
+                    <label for="prompt">Tempo information:</label>
+                    <input type="text" id="prompt2" name="prompt2" placeholder="120 BPM" required>
+                </div>
+                <div class="number-input-item">
+                    <label for="prompt">Instrumentation:</label>
+                    <input type="text" id="prompt3" name="prompt3" placeholder="Strong bass" required>
+                </div>
+            </div>
+
             <input type="file" id="audioInput" name="audioInput" accept="audio/*" style="display: none;">
             <div id="dropZone" class="drop-zone">
                 Drop your audio file here or click to upload
             </div>
             <!-- Additional inputs -->
             <div class="input-wrapper">
-                <label for="slider">Select Value: <span id="slider-value">8</span></label>
+                <label for="Duration">Length: <span id="duration-slider-value">8 seconds</span></label>
                 <input type="range" id="Duration" name="Duration" min="1" max="60" value="8">
-                <div class="number-inputs">
-                    <div class="number-input-item">
-                        <label for="Temperature">Temperature</label>
-                        <input type="number" id="Temperature" name="Temperature" value="1.0" min="0.0" oninput="if(this.value !== ''){if(this.value < 0.0){this.value = this.min;}}">
-                    </div>
-                    <div class="number-input-item">
-                        <label for="TopK">Top K</label>
-                        <input type="number" id="TopK" name="Top K" value="500">
-                    </div>
-                    <div class="number-input-item">
-                        <label for="TopP">Top P</label>
-                        <input type="number" id="TopP" name="Top P" value="0.0">
-                    </div>
-                </div>
-                <div class="number-inputs">
-                    <div class="number-input-item">
-                        <label for="Samples">Samples</label>
-                        <input type="number" id="Samples" name="Samples" value="1" min="1" max="4" oninput="if(this.value !== ''){if(this.value < 1){this.value = this.min;}else{if(this.value > 4){this.value = this.max;}}}">
-                    </div>
-                    <div class="number-input-item cfg-item">
-                        <label for="CFG">Classifier Free Guidance</label>
-                        <input type="number" id="CFG" name="Classifier Free Guidance" value="5">
+                <label for="Temperature">Creativity: <span id="temp-slider-value">66%</span></label>
+                <input type="range" id="Temperature" name="Temperature" min="0.01" max="1.5" step="0.01" value="1.0">
+
+                <label for="Samples">Samples: <span id="samples-slider-value">1</span></label>
+                <input type="range" id="Samples" name="Samples" min="1" max="4" step="1" value="1.0">
+
+                <label>
+                    <input type="checkbox" id="toggleAdvancedOptions"> Advanced Options
+                </label>
+
+                <div id="advancedOptions" class="advanced-options">
+                    <div class="number-inputs">
+                        <div class="number-input-item">
+                            <label for="TopK">Top K</label>
+                            <input type="number" id="TopK" name="Top K" value="500">
+                        </div>
+                        <div class="number-input-item">
+                            <label for="TopP">Top P</label>
+                            <input type="number" id="TopP" name="Top P" value="0.0">
+                        </div>
+                        <div class="number-input-item cfg-item">
+                            <label for="CFG">Classifier Free Guidance</label>
+                            <input type="number" id="CFG" name="Classifier Free Guidance" value="5">
+                        </div>
                     </div>
                 </div>
             </div>

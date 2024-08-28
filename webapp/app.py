@@ -52,6 +52,8 @@ def generate_audio(prompt, temperature, topk, topp, cfg, samples, duration, drop
     )
 
     audio_file_paths = [os.path.join(AUDIO_FOLDER, userid, f"{uuid.uuid4()}") for _ in range(samples)]
+    txt_file = '\n'.join(audio_file_paths)
+    os.system(f'echo "{txt_file}" > {os.path.join(AUDIO_FOLDER, userid, "recent_audio.txt")}')
     if dropped:
         melody, sr = torchaudio.load(dropped)
         for audio_file_path in audio_file_paths:
@@ -67,10 +69,11 @@ def generate_audio(prompt, temperature, topk, topp, cfg, samples, duration, drop
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
-        prompt = request.form.get('prompt').lower()
-        userid = request.form.get('userid')
+        prompt = str(request.form.get('prompt')).lower()
+        userid = str(request.form.get('userid'))
+        print(userid)
         if userid == 'undefined' or userid not in os.listdir(AUDIO_FOLDER):
-            userid = uuid.uuid4()
+            userid = str(uuid.uuid4())
             os.makedirs(f"{AUDIO_FOLDER}/{userid}", exist_ok=True)
         else:
             for file_ in glob.glob(f"{AUDIO_FOLDER}/{userid}/*"):
@@ -96,6 +99,25 @@ def index():
             except Exception as e:
                 return jsonify({'success': False, 'error': str(e)}), 500
     return render_template('index.html', download_link=None)
+
+@app.route('/api/download_links', methods=['POST'])
+def get_download_links():
+    userid = str(request.json.get('userid'))
+    print(userid)
+    if userid == 'undefined' or userid not in os.listdir(AUDIO_FOLDER):
+        userid = str(uuid.uuid4())
+        os.makedirs(f"{AUDIO_FOLDER}/{userid}", exist_ok=True)
+    try:
+        if os.path.exists(os.path.join(AUDIO_FOLDER, userid, 'recent_audio.txt')):
+            with open(os.path.join(AUDIO_FOLDER, userid, 'recent_audio.txt'), "r") as file_:
+                audio_paths = [path for path in file_.read().split('\n') if os.path.exists(path)]
+                audio_filenames = [os.path.basename(audio_file_path) for audio_file_path in audio_paths]
+        else:
+            audio_filenames = []
+        download_links = [f'/download/{userid}/{audio_filename}.wav' for audio_filename in audio_filenames]
+        return jsonify({'success': True, 'download_links': download_links, 'userid': userid})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/download/<userid>/<filename>')
 def download(userid, filename):
