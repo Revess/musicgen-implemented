@@ -43,23 +43,29 @@ def generate_audio(prompt, temperature, topk, topp, cfg, samples, duration, drop
         print([f"{AUDIO_FOLDER}/{userid}/8b83f79f-80e9-4b5a-b62a-0d4124d1c809.wav"] * samples)
         return [f"{AUDIO_FOLDER}/{userid}/8b83f79f-80e9-4b5a-b62a-0d4124d1c809.wav"] * samples
     
-    model_prompt.set_generation_params(
-        duration=duration,
-        temperature=temperature,
-        top_k=topk,
-        top_p=topp,
-        cfg_coef=cfg
-    )
-
     audio_file_paths = [os.path.join(AUDIO_FOLDER, userid, f"{uuid.uuid4()}") for _ in range(samples)]
     txt_file = '\n'.join(audio_file_paths)
     os.system(f'echo "{txt_file}" > {os.path.join(AUDIO_FOLDER, userid, "recent_audio.txt")}')
     if dropped:
         melody, sr = torchaudio.load(dropped)
+        model_melody.set_generation_params(
+            duration=duration,
+            temperature=temperature,
+            top_k=topk,
+            top_p=topp,
+            cfg_coef=cfg
+        )
         for audio_file_path in audio_file_paths:
             wav = model_melody.generate_with_chroma([prompt], melody[None].expand(1, -1, -1), sr)
-            audio_write(audio_file_path, wav[0].cpu(), model_prompt.sample_rate, strategy="loudness")
+            audio_write(audio_file_path, wav[0].cpu(), model_melody.sample_rate, strategy="loudness")
     else:
+        model_prompt.set_generation_params(
+            duration=duration,
+            temperature=temperature,
+            top_k=topk,
+            top_p=topp,
+            cfg_coef=cfg
+        )
         for audio_file_path in audio_file_paths:
             wav = model_prompt.generate([prompt])
             audio_write(audio_file_path, wav[0].cpu(), model_prompt.sample_rate, strategy="loudness")
