@@ -77,7 +77,6 @@ def index():
     if request.method == 'POST':
         prompt = str(request.form.get('prompt')).lower()
         userid = str(request.form.get('userid'))
-        print(userid)
         if userid == 'undefined' or userid not in os.listdir(AUDIO_FOLDER):
             userid = str(uuid.uuid4())
             os.makedirs(f"{AUDIO_FOLDER}/{userid}", exist_ok=True)
@@ -103,13 +102,13 @@ def index():
                 download_links = [f'/download/{userid}/{audio_filename}' for audio_filename in audio_filenames]
                 return jsonify({'success': True, 'download_links': download_links, 'userid': userid})
             except Exception as e:
+                print(e)
                 return jsonify({'success': False, 'error': str(e)}), 500
     return render_template('index.html', download_link=None)
 
 @app.route('/api/download_links', methods=['POST'])
 def get_download_links():
     userid = str(request.json.get('userid'))
-    print(userid)
     if userid == 'undefined' or userid not in os.listdir(AUDIO_FOLDER):
         userid = str(uuid.uuid4())
         os.makedirs(f"{AUDIO_FOLDER}/{userid}", exist_ok=True)
